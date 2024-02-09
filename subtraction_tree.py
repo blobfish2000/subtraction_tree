@@ -96,14 +96,17 @@ class ValueNode:
         else:
             return (self.value,0)
 
-    def __init__(self, value, depth=0):
+    def __init__(self, value, variable = None, depth=0):
         self.value = value
         self.depth = depth
         self.variable = False
-        if random.random() < 0.2:
-            self.variable = True
-            if self.value == 0:
-                self.value = 1
+        if variable == None:
+            if random.random() < 0.2:
+                self.variable = True
+                if self.value == 0:
+                    self.value = 1
+            else:
+                self.variable = False
 
     def __str__(self):
         if self.variable:
@@ -144,7 +147,7 @@ def lex(code_string):
                 if len(match.groups())>0:
                     group = match[1]
                 
-                if lexeme_class == "integer":
+                if lexeme_class in ["integer", "scalar"]:
                     group = int(group)
                 if lexeme_class == "variable":
                     group = int(group[:-1])
@@ -159,10 +162,74 @@ def lex(code_string):
     return lexeme_list
 
 def parse(lexeme_list):
-    #
-    head = lexeme_list[0]
-    match head:
-        case 
+    #nested functions are kinda icky but w/e
+    tokens = lexeme_list[:] #we mutate this as we advance. We could also use an index but this feels nicer
+    tokens = tokens.reverse()
+
+    def paren():
+
+        scalar = 1
+        if tokens[-1][0] == "scalar":
+            scalar = tokens[-1][0]
+            tokens.pop()
+
+        if tokens[-1][0] != "lparen":
+            return False
+
+        tokens.pop()
+
+        child = None
+        
+        if not (child := infix()): #praise the walrus. Also I hate this
+            if not (child := value()):
+                print("paren interior Error!!!", tokens)
+                return False
+
+        if tokens[-1][0] != "rparen":
+            print("paren match Error!!!", tokens)
+            return False
+
+        tokens.pop()
+
+        return ParenNode(child, scalar)
+
+    def unit():
+        unit = None
+        if not (unit := paren()):
+            if not (unit := value()):
+                return False
+        return unit
+
+    def infix():
+        a = None
+        b = None
+        #this isn't how a recursive descent parser is supposed to work but honestly w/e
+        freeze = tokens[:]
+        if not (a := unit()):
+            return False
+
+        if tokens[-1][0] not in ["plus","minus"]:
+            tokens = freeze[:]
+            return False
+        
+        symbol = {"plus":"+", "minus":"-"}[tokens[-1][0]]
+        tokens.pop()
+
+        if not (b := unit()):
+            print(symbol, "Error!!!", tokens)
+            return false
+
+        return InfixNode(a, b, op = symbol)
+
+    def value():
+        if tokens[-1][0] not in ["integer", "variable"]:
+            return False
+        
+        value = tokens.pop() 
+        return ValueNode(value[1],variable = (value[0] == "variable"))
+
+    return paren()
+
 
 
 n = InfixNode(None, None)
